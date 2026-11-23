@@ -11,15 +11,29 @@
 // Outside the grader's container, MAKEFUN_BOT_DIR and MAKEFUN_OUTPUT_DIR stand in for /bot and /output:
 //   mkdir -p out && MAKEFUN_BOT_DIR=. MAKEFUN_OUTPUT_DIR=out node main.ts
 
-import { copyFileSync, mkdirSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const BOT_DIR = process.env.MAKEFUN_BOT_DIR ?? '/bot';
 const OUTPUT_DIR = process.env.MAKEFUN_OUTPUT_DIR ?? '/output';
 
 mkdirSync(OUTPUT_DIR, { recursive: true });
+const postPath = join(BOT_DIR, 'POST.json');
 try {
-  copyFileSync(join(BOT_DIR, 'POST.json'), join(OUTPUT_DIR, 'POST.json'));
+  const raw = readFileSync(postPath, 'utf8');
+  let post: unknown;
+  try {
+    post = JSON.parse(raw);
+  } catch (err) {
+    console.error(`POST.json in ${BOT_DIR} is not valid JSON: ${(err as Error).message}`);
+    process.exit(1);
+  }
+  const url = (post as { url?: unknown } | null)?.url;
+  if (typeof url !== 'string' || !url.startsWith('https://x.com/') || !url.includes('/status/')) {
+    console.error(`POST.json in ${BOT_DIR} does not name a valid X post URL (expected https://x.com/<handle>/status/<id>): ${JSON.stringify(url)}`);
+    process.exit(1);
+  }
+  copyFileSync(postPath, join(OUTPUT_DIR, 'POST.json'));
 } catch (err) {
   console.error(`POST.json could not be copied from ${BOT_DIR}: ${(err as Error).message}`);
   process.exit(1);
